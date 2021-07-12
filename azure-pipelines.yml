@@ -1,0 +1,68 @@
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+- task: NodeTool@0
+  inputs:
+    versionSpec: '12.x'
+  displayName: 'Install Node.js'
+
+- task: SonarCloudPrepare@1
+  inputs:
+        SonarCloud: 'SonarCloud'
+        organization: 'technology-internal'
+        scannerMode: CLI
+        configMode: manual
+        cliProjectKey: 'Technology-Internal_MobileApp'
+        cliProjectName: 'MobileApp'
+        cliSources: '.'
+        extraProperties: |
+          sonar.java.binaries=android/
+          sonar.c.file.suffixes=-
+          sonar.cpp.file.suffixes=-
+          sonar.objc.file.suffixes=-
+          
+- script: |
+    npm install -g npm@latest
+    npm version
+    echo "NPM version"
+    npm install react-native-unimodules
+    echo "installation with react-native completed"
+    echo " cd node_modules"
+    cd node_modules
+    dir
+  displayName: 'Install node dependencies'
+  workingDirectory: 'android'
+
+- task: Gradle@2
+  inputs:
+    workingDirectory: 'android'
+    gradleWrapperFile: 'android/gradlew'
+    gradleOptions: '-Xmx1024m'
+    publishJUnitResults: false
+    testResultsFiles: '**/TEST-*.xml'
+    tasks: 'assembleRelease'
+
+- task: SonarCloudAnalyze@1
+
+- task: CopyFiles@2
+  inputs:
+    SourceFolder: 'android/app/build/outputs/apk/release/'
+    contents: '*.apk'
+    targetFolder: '$(build.artifactStagingDirectory)'
+
+- task: PublishBuildArtifacts@1
+
+- task: UniversalPackages@0
+  inputs:
+    command: 'publish'
+    publishDirectory: '$(Build.ArtifactStagingDirectory)'
+    feedsToUsePublish: 'internal'
+    vstsFeedPublish: 'MobileApp'
+    vstsFeedPackagePublish: 'mobileapp-apk'
+    versionOption: 'minor'
+    packagePublishDescription: 'MobileApp APK File'
+
+- task: SonarCloudPublish@1
+  inputs:
+    pollingTimeoutSec: '300'
